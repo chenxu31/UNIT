@@ -165,7 +165,7 @@ class VAEGen(nn.Module):
         # This is a reduced VAE implementation where we assume the outputs are multivariate Gaussian distribution with mean = hiddens and std_dev = all ones.
         hiddens = self.encode(images)
         if self.training == True:
-            noise = Variable(torch.randn(hiddens.size()).cuda(hiddens.data.get_device()))
+            noise = Variable(torch.randn(hiddens.size(), device=hiddens.data.device))
             images_recon = self.decode(hiddens + noise)
         else:
             images_recon = self.decode(hiddens)
@@ -173,7 +173,7 @@ class VAEGen(nn.Module):
 
     def encode(self, images):
         hiddens = self.enc(images)
-        noise = Variable(torch.randn(hiddens.size()).cuda(hiddens.data.get_device()))
+        noise = Variable(torch.randn(hiddens.size(), device=hiddens.data.device))
         return hiddens, noise
 
     def decode(self, hiddens):

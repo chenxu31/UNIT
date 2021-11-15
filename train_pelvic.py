@@ -184,7 +184,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', type=str, default='configs/pelvic.yaml', help='Path to the config file.')
     parser.add_argument('--output_path', type=str, default='outputs', help="outputs path")
     parser.add_argument("--resume", action="store_true")
-    parser.add_argument('--trainer', type=str, default='MUNIT', help="MUNIT|UNIT")
+    parser.add_argument('--trainer', type=str, default='UNIT', help="MUNIT|UNIT")
     parser.add_argument('--gpu', type=int, default=0, help="gpu device id")
     parser.add_argument('--data_dir', type=str, default=r'data', help='path of the dataset')
     parser.add_argument('--log_dir', type=str, default=r'logs', help="log file dir")
