@@ -2,6 +2,8 @@
 Copyright (C) 2017 NVIDIA Corporation.  All rights reserved.
 Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 """
+import pdb
+
 from networks import AdaINGen, MsImageDis, VAEGen
 from utils import weights_init, get_model_list, vgg_preprocess, load_vgg16, get_scheduler
 from torch.autograd import Variable
@@ -23,8 +25,12 @@ class MUNIT_Trainer(nn.Module):
 
         # fix the noise used in sampling
         display_size = int(hyperparameters['display_size'])
-        self.s_a = torch.randn(display_size, self.style_dim, 1, 1).cuda()
-        self.s_b = torch.randn(display_size, self.style_dim, 1, 1).cuda()
+        self.s_a = torch.randn(display_size, self.style_dim, 1, 1)
+        self.s_b = torch.randn(display_size, self.style_dim, 1, 1)
+
+        if hyperparameters["gpu"] >= 0:
+            self.s_a = self.s_a.cuda()
+            self.s_b = self.s_b.cuda()
 
         # Setup the optimizers
         beta1 = hyperparameters['beta1']
@@ -66,8 +72,12 @@ class MUNIT_Trainer(nn.Module):
 
     def gen_update(self, x_a, x_b, hyperparameters):
         self.gen_opt.zero_grad()
-        s_a = Variable(torch.randn(x_a.size(0), self.style_dim, 1, 1).cuda())
-        s_b = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1).cuda())
+        if hyperparameters["gpu"] >= 0:
+            s_a = Variable(torch.randn(x_a.size(0), self.style_dim, 1, 1).cuda())
+            s_b = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1).cuda())
+        else:
+            s_a = Variable(torch.randn(x_a.size(0), self.style_dim, 1, 1))
+            s_b = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1))
         # encode
         c_a, s_a_prime = self.gen_a.encode(x_a)
         c_b, s_b_prime = self.gen_b.encode(x_b)
@@ -103,15 +113,17 @@ class MUNIT_Trainer(nn.Module):
         self.loss_gen_total = hyperparameters['gan_w'] * self.loss_gen_adv_a + \
                               hyperparameters['gan_w'] * self.loss_gen_adv_b + \
                               hyperparameters['recon_x_w'] * self.loss_gen_recon_x_a + \
-                              hyperparameters['recon_s_w'] * self.loss_gen_recon_s_a + \
-                              hyperparameters['recon_c_w'] * self.loss_gen_recon_c_a + \
                               hyperparameters['recon_x_w'] * self.loss_gen_recon_x_b + \
-                              hyperparameters['recon_s_w'] * self.loss_gen_recon_s_b + \
-                              hyperparameters['recon_c_w'] * self.loss_gen_recon_c_b + \
                               hyperparameters['recon_x_cyc_w'] * self.loss_gen_cycrecon_x_a + \
                               hyperparameters['recon_x_cyc_w'] * self.loss_gen_cycrecon_x_b + \
                               hyperparameters['vgg_w'] * self.loss_gen_vgg_a + \
                               hyperparameters['vgg_w'] * self.loss_gen_vgg_b
+        if "recon_s_w" in hyperparameters:
+            self.loss_gen_total += hyperparameters['recon_s_w'] * self.loss_gen_recon_s_a + \
+                                   hyperparameters['recon_s_w'] * self.loss_gen_recon_s_b
+        if "recon_c_w" in hyperparameters:
+            self.loss_gen_total += hyperparameters['recon_c_w'] * self.loss_gen_recon_c_a + \
+                                   hyperparameters['recon_c_w'] * self.loss_gen_recon_c_b
         self.loss_gen_total.backward()
         self.gen_opt.step()
 
@@ -146,8 +158,12 @@ class MUNIT_Trainer(nn.Module):
 
     def dis_update(self, x_a, x_b, hyperparameters):
         self.dis_opt.zero_grad()
-        s_a = Variable(torch.randn(x_a.size(0), self.style_dim, 1, 1).cuda())
-        s_b = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1).cuda())
+        if hyperparameters["gpu"] >= 0:
+            s_a = Variable(torch.randn(x_a.size(0), self.style_dim, 1, 1).cuda())
+            s_b = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1).cuda())
+        else:
+            s_a = Variable(torch.randn(x_a.size(0), self.style_dim, 1, 1))
+            s_b = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1))
         # encode
         c_a, _ = self.gen_a.encode(x_a)
         c_b, _ = self.gen_b.encode(x_b)
@@ -189,10 +205,10 @@ class MUNIT_Trainer(nn.Module):
         print('Resume from iteration %d' % iterations)
         return iterations
 
-    def save(self, snapshot_dir, iterations):
+    def save(self, snapshot_dir, tag):
         # Save generators, discriminators, and optimizers
-        gen_name = os.path.join(snapshot_dir, 'gen_%08d.pt' % (iterations + 1))
-        dis_name = os.path.join(snapshot_dir, 'dis_%08d.pt' % (iterations + 1))
+        gen_name = os.path.join(snapshot_dir, 'gen_%s.pt' % tag)
+        dis_name = os.path.join(snapshot_dir, 'dis_%s.pt' % tag)
         opt_name = os.path.join(snapshot_dir, 'optimizer.pt')
         torch.save({'a': self.gen_a.state_dict(), 'b': self.gen_b.state_dict()}, gen_name)
         torch.save({'a': self.dis_a.state_dict(), 'b': self.dis_b.state_dict()}, dis_name)
@@ -371,10 +387,10 @@ class UNIT_Trainer(nn.Module):
         print('Resume from iteration %d' % iterations)
         return iterations
 
-    def save(self, snapshot_dir, iterations):
+    def save(self, snapshot_dir, tag):
         # Save generators, discriminators, and optimizers
-        gen_name = os.path.join(snapshot_dir, 'gen_%08d.pt' % (iterations + 1))
-        dis_name = os.path.join(snapshot_dir, 'dis_%08d.pt' % (iterations + 1))
+        gen_name = os.path.join(snapshot_dir, 'gen_%s.pt' % tag)
+        dis_name = os.path.join(snapshot_dir, 'dis_%s.pt' % tag)
         opt_name = os.path.join(snapshot_dir, 'optimizer.pt')
         torch.save({'a': self.gen_a.state_dict(), 'b': self.gen_b.state_dict()}, gen_name)
         torch.save({'a': self.dis_a.state_dict(), 'b': self.dis_b.state_dict()}, dis_name)
