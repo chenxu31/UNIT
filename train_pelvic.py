@@ -64,9 +64,9 @@ def main(logger, opts):
         aug_para["zoom"] = opts.aug_zoom
 
     data_iter = common_pelvic.DataIter(device, opts.data_dir, patch_depth=config["input_dim_a"],
-                                       batch_size=config["batch_size"], mini=opts.mini)
+                                       batch_size=config["batch_size"], view=opts.view, mini=opts.mini)
     if opts.do_validation:
-        val_data_s, val_data_t, _, _ = common_pelvic.load_val_data(opts.data_dir, mini=opts.mini)
+        val_data_s, val_data_t, _, _ = common_pelvic.load_val_data(opts.data_dir, view=opts.view, mini=opts.mini)
 
     """
     train_loader_a, train_loader_b, test_loader_a, test_loader_b = get_all_data_loaders(config)
@@ -103,19 +103,19 @@ def main(logger, opts):
         if (it + 1) % config['image_display_iter'] == 0:
             msg = "Iter: %d" % (it + 1)
 
-            syn_st, syn_ts = trainer.forward(patch_s, patch_t)
-
-            train_patch_s_np = patch_s.cpu().detach().numpy()
-            train_patch_t_np = patch_t.cpu().detach().numpy()
-            train_syn_st_np = syn_st.cpu().detach().numpy()
-            train_syn_ts_np = syn_ts.cpu().detach().numpy()
-
-            gen_images_train = numpy.concatenate([train_patch_s_np, train_syn_st_np, train_syn_ts_np, train_patch_t_np], 3)
-            gen_images_train = common_pelvic.generate_display_image(gen_images_train, is_seg=False)
-
             if opts.log_dir:
                 try:
+                    syn_st, syn_ts = trainer.forward(patch_s, patch_t)
+
+                    train_patch_s_np = patch_s.cpu().detach().numpy()
+                    train_patch_t_np = patch_t.cpu().detach().numpy()
+                    train_syn_st_np = syn_st.cpu().detach().numpy()
+                    train_syn_ts_np = syn_ts.cpu().detach().numpy()
+
+                    gen_images_train = numpy.concatenate([train_patch_s_np, train_syn_st_np, train_syn_ts_np, train_patch_t_np], 3)
+                    gen_images_train = common_pelvic.generate_display_image(gen_images_train, is_seg=False)
                     skimage.io.imsave(os.path.join(opts.log_dir, "gen_images_train.jpg"), gen_images_train)
+                    del gen_images_train
                 except:
                     pass
 
@@ -153,14 +153,14 @@ def main(logger, opts):
 
                 msg += "  val_st_psnr:%f/%f  val_ts_psnr:%f/%f" % \
                        (val_st_psnr.mean(), val_st_psnr.std(), val_ts_psnr.mean(), val_ts_psnr.std())
-                gen_images_test = numpy.concatenate(
-                    [val_data_s[0], val_st_list[0], val_ts_list[0], val_data_t[0]], 2)
-                gen_images_test = numpy.expand_dims(gen_images_test, 0).astype(numpy.float32)
-                gen_images_test = common_pelvic.generate_display_image(gen_images_test, is_seg=False)
-
                 if opts.log_dir:
                     try:
+                        gen_images_test = numpy.concatenate([val_data_s[0], val_st_list[0], val_ts_list[0], val_data_t[0]], 2)
+                        gen_images_test = numpy.expand_dims(gen_images_test, 0).astype(numpy.float32)
+                        gen_images_test = common_pelvic.generate_display_image(gen_images_test, is_seg=False)
+
                         skimage.io.imsave(os.path.join(opts.log_dir, "gen_images_test.jpg"), gen_images_test)
+                        del gen_images_test
                     except:
                         pass
 
@@ -189,6 +189,7 @@ if __name__ == '__main__':
     parser.add_argument('--data_dir', type=str, default=r'data', help='path of the dataset')
     parser.add_argument('--log_dir', type=str, default=r'logs', help="log file dir")
     parser.add_argument('--checkpoint_dir', type=str, default=r'checkpoints', help="checkpoint file dir")
+    parser.add_argument('--view', type=str, default='axial', choices=['axial','coronal','sagittal'], help="view")
     parser.add_argument('--pretrained_tag', type=str, default='final', choices=['best','final'], help="pretrained file tag")
     parser.add_argument('--logfile', type=str, default='', help="log file")
     parser.add_argument('--aug_sigma', type=float, default=0.5, help="augmentation parameter:sigma")

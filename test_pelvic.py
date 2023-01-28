@@ -26,6 +26,7 @@ sys.path.append(os.path.join("..", "util"))
 import common_metrics
 import common_pelvic_pt as common_pelvic
 
+
 def main(logger, opts):
     # Load experiment setting
     config = get_config(opts.config)
@@ -55,16 +56,21 @@ def main(logger, opts):
     else:
         sys.exit("Only support MUNIT|UNIT")
 
+    state_dict = torch.load(os.path.join(opts.checkpoint_dir, "gen_final.pt"))
+    trainer.gen_a.load_state_dict(state_dict['a'])
+    trainer.gen_b.load_state_dict(state_dict['b'])
+    
     if opts.gpu >= 0:
         trainer.cuda()
 
     test_ids_t = common_pelvic.load_data_ids(opts.data_dir, "testing", "treat")
-    test_data_s, test_data_t, _, _ = common_pelvic.load_test_data(opts.data_dir, mini=opts.mini)
+    test_data_s, test_data_t, _, _ = common_pelvic.load_test_data(opts.data_dir, view=opts.view, mini=opts.mini)
 
     test_st_psnr = numpy.zeros((test_data_s.shape[0], 1), numpy.float32)
     test_ts_psnr = numpy.zeros((test_data_t.shape[0], 1), numpy.float32)
     test_st_list = []
     test_ts_list = []
+    msg_detail = ""
     with torch.no_grad():
         for i in range(test_data_s.shape[0]):
             test_st = numpy.zeros(test_data_s.shape[1:], numpy.float32)
@@ -85,7 +91,7 @@ def main(logger, opts):
             test_ts /= used
 
             if opts.output_dir:
-                common_pelvic.save_nii(test_ts, os.path.join(opts.output_dir, "syn_%s.nii.gz" % test_ids_t[i]))
+                common_pelvic.save_nii(common_pelvic.unpad_data(test_ts, opts.view), os.path.join(opts.output_dir, "syn_%s.nii.gz" % test_ids_t[i]))
 
             st_psnr = common_metrics.psnr(test_st, test_data_t[i])
             ts_psnr = common_metrics.psnr(test_ts, test_data_s[i])
@@ -94,14 +100,16 @@ def main(logger, opts):
             test_ts_psnr[i] = ts_psnr
             test_st_list.append(test_st)
             test_ts_list.append(test_ts)
+            msg_detail += "  %s_psnr: %f\n" % (test_ids_t[i], ts_psnr)
 
     msg = "  test_st_psnr:%f/%f  test_ts_psnr:%f/%f" % \
           (test_st_psnr.mean(), test_st_psnr.std(), test_ts_psnr.mean(), test_ts_psnr.std())
     logger.info(msg)
+    logger.info(msg_detail)
 
     if opts.output_dir:
         with open(os.path.join(opts.output_dir, "result.txt"), "w") as f:
-            f.write(msg)
+            f.write(msg + msg_detail)
 
         numpy.save(os.path.join(opts.output_dir, "st_psnr.npy"), test_st_psnr)
         numpy.save(os.path.join(opts.output_dir, "ts_psnr.npy"), test_ts_psnr)
@@ -115,6 +123,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', type=int, default=0, help="gpu device id")
     parser.add_argument('--data_dir', type=str, default=r'data', help='path of the dataset')
     parser.add_argument('--checkpoint_dir', type=str, default=r'checkpoints', help="checkpoint file dir")
+    parser.add_argument('--view', type=str, default='axial', choices=['axial','coronal','sagittal'], help="view")
     parser.add_argument('--pretrained_tag', type=str, default='final', choices=['best','final'], help="pretrained file tag")
     parser.add_argument('--mini', type=int, default=0, help="whether do mini data to avoid memory insufficient issue")
 
