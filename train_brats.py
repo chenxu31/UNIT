@@ -62,9 +62,9 @@ def main(logger, opts):
 
     dataset_s = common_brats.Dataset(opts.data_dir, modality="t2", n_slices=config["input_dim_a"])
     dataset_t = common_brats.Dataset(opts.data_dir, modality="t1", n_slices=config["input_dim_b"])
-    dataloader_s = torch.utils.data.DataLoader(dataset_s, batch_size=config["batch_size"], shuffle=True, pin_memory=True,
+    dataloader_s = torch.utils.data.DataLoader(dataset_s, batch_size=opts.batch_size, shuffle=True, pin_memory=True,
                                                drop_last=True)
-    dataloader_t = torch.utils.data.DataLoader(dataset_t, batch_size=config["batch_size"], shuffle=True, pin_memory=True,
+    dataloader_t = torch.utils.data.DataLoader(dataset_t, batch_size=opts.batch_size, shuffle=True, pin_memory=True,
                                                drop_last=True)
     if opts.do_validation:
         val_data_t, val_data_s = common_brats.load_test_data(opts.data_dir, "val")
@@ -189,6 +189,7 @@ if __name__ == '__main__':
     parser.add_argument("--resume", action="store_true")
     parser.add_argument('--trainer', type=str, default='UNIT', help="MUNIT|UNIT")
     parser.add_argument('--gpu', type=int, default=0, help="gpu device id")
+    parser.add_argument('--batch_size', type=int, default=16, help="gpu device id")
     parser.add_argument('--data_dir', type=str, default=r'data', help='path of the dataset')
     parser.add_argument('--log_dir', type=str, default=r'logs', help="log file dir")
     parser.add_argument('--checkpoint_dir', type=str, default=r'checkpoints', help="checkpoint file dir")
