@@ -45,10 +45,6 @@ def main(logger, opts):
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
         device = torch.device("cpu")
 
-    if opts.mini:
-        config["crop_image_height"] //= 4
-        config["crop_image_width"] //= 4
-
     # Setup model and data loader
     if opts.trainer == 'MUNIT':
         trainer = MUNIT_Trainer(config)
