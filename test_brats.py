@@ -28,7 +28,7 @@ if platform.system() == 'Windows':
 else:
   sys.path.append("/home/chenxu/我的坚果云/sourcecode/python/util")
 import common_metrics
-import common_pelvic_pt as common_pelvic
+import common_brats
 
 
 def main(logger, opts):
@@ -56,7 +56,7 @@ def main(logger, opts):
     else:
         sys.exit("Only support MUNIT|UNIT")
 
-    state_dict = torch.load(os.path.join(opts.checkpoint_dir, "gen_final.pt"))
+    state_dict = torch.load(os.path.join(opts.checkpoint_dir, "gen_best.pt"))
     trainer.gen_a.load_state_dict(state_dict['a'])
     trainer.gen_b.load_state_dict(state_dict['b'])
     
@@ -98,8 +98,8 @@ def main(logger, opts):
 
             st_psnr = common_metrics.psnr(test_st, test_data_t[i])
             ts_psnr = common_metrics.psnr(test_ts, test_data_s[i])
-            st_ssim = SSIM(test_st, test_data_t[i], range=2.)
-            ts_ssim = SSIM(test_ts, test_data_s[i], range=2.)
+            st_ssim = SSIM(test_st, test_data_t[i], data_range=2.)
+            ts_ssim = SSIM(test_ts, test_data_s[i], data_range=2.)
             st_mae = abs(test_st - test_data_t[i]).mean()
             ts_mae = abs(test_ts - test_data_s[i]).mean()
 
