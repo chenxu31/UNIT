@@ -21,11 +21,14 @@ import shutil
 import numpy
 import pdb
 from skimage.metrics import structural_similarity as SSIM
+import platform
 
-
-sys.path.append(r"E:\我的坚果云\sourcecode\python\util")
+if platform.system() == 'Windows':
+  sys.path.append(r"E:\我的坚果云\sourcecode\python\util")
+else:
+  sys.path.append("/home/chenxu/我的坚果云/sourcecode/python/util")
 import common_metrics
-import common_pelvic_pt as common_pelvic
+import common_brats
 
 
 def main(logger, opts):
@@ -45,10 +48,6 @@ def main(logger, opts):
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
         device = torch.device("cpu")
 
-    if opts.mini:
-        config["crop_image_height"] //= 4
-        config["crop_image_width"] //= 4
-
     # Setup model and data loader
     if opts.trainer == 'MUNIT':
         trainer = MUNIT_Trainer(config)
@@ -57,20 +56,21 @@ def main(logger, opts):
     else:
         sys.exit("Only support MUNIT|UNIT")
 
-    state_dict = torch.load(os.path.join(opts.checkpoint_dir, "gen_final.pt"))
+    state_dict = torch.load(os.path.join(opts.checkpoint_dir, "gen_best.pt"))
     trainer.gen_a.load_state_dict(state_dict['a'])
     trainer.gen_b.load_state_dict(state_dict['b'])
     
     if opts.gpu >= 0:
         trainer.cuda()
 
-    test_ids_t = common_pelvic.load_data_ids(opts.data_dir, "testing", "treat")
-    test_data_s, test_data_t, _, _ = common_pelvic.load_test_data(opts.data_dir, view=opts.view, valid=True)
+    test_data_t, test_data_s = common_brats.load_test_data(opts.data_dir, "test")
 
-    test_st_psnr = numpy.zeros((len(test_data_s), 1), numpy.float32)
-    test_ts_psnr = numpy.zeros((len(test_data_t), 1), numpy.float32)
-    test_st_ssim = numpy.zeros((len(test_data_s), 1), numpy.float32)
-    test_ts_ssim = numpy.zeros((len(test_data_t), 1), numpy.float32)
+    test_st_psnr = numpy.zeros((test_data_s.shape[0], 1), numpy.float32)
+    test_ts_psnr = numpy.zeros((test_data_t.shape[0], 1), numpy.float32)
+    test_st_ssim = numpy.zeros((test_data_s.shape[0], 1), numpy.float32)
+    test_ts_ssim = numpy.zeros((test_data_t.shape[0], 1), numpy.float32)
+    test_st_mae = numpy.zeros((test_data_s.shape[0], 1), numpy.float32)
+    test_ts_mae = numpy.zeros((test_data_t.shape[0], 1), numpy.float32)
     test_st_list = []
     test_ts_list = []
     msg_detail = ""
@@ -93,27 +93,29 @@ def main(logger, opts):
             test_st /= used
             test_ts /= used
 
-            """
             if opts.output_dir:
-                common_pelvic.save_nii(common_pelvic.unpad_data(test_ts, opts.view), os.path.join(opts.output_dir, "syn_%s.nii.gz" % test_ids_t[i]))
-            """
+                common_brats.save_nii(test_ts, os.path.join(opts.output_dir, "syn_%d.nii.gz" % i))
 
             st_psnr = common_metrics.psnr(test_st, test_data_t[i])
             ts_psnr = common_metrics.psnr(test_ts, test_data_s[i])
-            st_ssim = SSIM(test_st, test_data_t[i])
-            ts_ssim = SSIM(test_ts, test_data_s[i])
+            st_ssim = SSIM(test_st, test_data_t[i], data_range=2.)
+            ts_ssim = SSIM(test_ts, test_data_s[i], data_range=2.)
+            st_mae = abs(test_st - test_data_t[i]).mean()
+            ts_mae = abs(test_ts - test_data_s[i]).mean()
 
             test_st_psnr[i] = st_psnr
             test_ts_psnr[i] = ts_psnr
             test_st_ssim[i] = st_ssim
             test_ts_ssim[i] = ts_ssim
+            test_st_mae[i] = st_mae
+            test_ts_mae[i] = ts_mae
             test_st_list.append(test_st)
             test_ts_list.append(test_ts)
-            msg_detail += "  %s_psnr: %f  %s_ssim: %f\n" % (test_ids_t[i], ts_psnr, test_ids_t[i], ts_ssim)
+            msg_detail += "  %d_psnr: %f  %d_ssim: %f  %d_mae: %f\n" % (i, ts_psnr, i, ts_ssim, i, ts_mae)
 
-    msg = "  test_st_psnr:%f/%f  test_st_ssim:%f/%f  test_ts_psnr:%f/%f  test_ts_ssim:%f/%f" % \
-          (test_st_psnr.mean(), test_st_psnr.std(), test_st_ssim.mean(), test_st_ssim.std(),
-           test_ts_psnr.mean(), test_ts_psnr.std(), test_ts_ssim.mean(), test_ts_ssim.std())
+    msg = "  test_st_psnr:%f/%f  test_st_ssim:%f/%f  test_st_mae:%f/%f  test_ts_psnr:%f/%f  test_ts_ssim:%f/%f  test_ts_mae:%f/%f" % \
+          (test_st_psnr.mean(), test_st_psnr.std(), test_st_ssim.mean(), test_st_ssim.std(), test_st_mae.mean(), test_st_mae.std(),
+           test_ts_psnr.mean(), test_ts_psnr.std(), test_ts_ssim.mean(), test_ts_ssim.std(), test_ts_mae.mean(), test_ts_mae.std())
     logger.info(msg)
     logger.info(msg_detail)
 
@@ -125,19 +127,19 @@ def main(logger, opts):
         numpy.save(os.path.join(opts.output_dir, "ts_psnr.npy"), test_ts_psnr)
         numpy.save(os.path.join(opts.output_dir, "st_ssim.npy"), test_st_ssim)
         numpy.save(os.path.join(opts.output_dir, "ts_ssim.npy"), test_ts_ssim)
+        numpy.save(os.path.join(opts.output_dir, "st_mae.npy"), test_st_mae)
+        numpy.save(os.path.join(opts.output_dir, "ts_mae.npy"), test_ts_mae)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='')
-    parser.add_argument('--config', type=str, default='configs/pelvic.yaml', help='Path to the config file.')
+    parser.add_argument('--config', type=str, default='configs/brats.yaml', help='Path to the config file.')
     parser.add_argument('--output_dir', type=str, default='outputs', help="outputs path")
     parser.add_argument('--trainer', type=str, default='UNIT', help="MUNIT|UNIT")
     parser.add_argument('--gpu', type=int, default=0, help="gpu device id")
     parser.add_argument('--data_dir', type=str, default=r'data', help='path of the dataset')
     parser.add_argument('--checkpoint_dir', type=str, default=r'checkpoints', help="checkpoint file dir")
-    parser.add_argument('--view', type=str, default='axial', choices=['axial','coronal','sagittal'], help="view")
-    parser.add_argument('--pretrained_tag', type=str, default='final', choices=['best','final'], help="pretrained file tag")
-    parser.add_argument('--mini', type=int, default=0, help="whether do mini data to avoid memory insufficient issue")
+    parser.add_argument('--pretrained_tag', type=str, default='best', choices=['best','final'], help="pretrained file tag")
 
     opts = parser.parse_args()
 
@@ -150,4 +152,3 @@ if __name__ == '__main__':
     logger.addHandler(logc)
 
     main(logger, opts)
-
