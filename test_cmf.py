@@ -62,7 +62,7 @@ def main(logger, opts):
     else:
         sys.exit("Only support MUNIT|UNIT")
 
-    state_dict = torch.load(os.path.join(opts.checkpoint_dir, "gen_final.pt"))
+    state_dict = torch.load(os.path.join(opts.checkpoint_dir, "gen_%s.pt" % opts.pretrained_tag))
     trainer.gen_a.load_state_dict(state_dict['a'])
     trainer.gen_b.load_state_dict(state_dict['b'])
     
@@ -104,8 +104,8 @@ def main(logger, opts):
 
             st_psnr = common_metrics.psnr(test_st, test_data_t[i])
             ts_psnr = common_metrics.psnr(test_ts, test_data_s[i])
-            st_ssim = SSIM(test_st, test_data_t[i])
-            ts_ssim = SSIM(test_ts, test_data_s[i])
+            st_ssim = SSIM(test_st, test_data_t[i], data_range=2.)
+            ts_ssim = SSIM(test_ts, test_data_s[i], data_range=2.)
             st_mae = abs(common_cmf.restore_hu(test_st) - common_cmf.restore_hu(test_data_t[i])).mean()
             ts_mae = abs(common_cmf.restore_hu(test_ts) - common_cmf.restore_hu(test_data_s[i])).mean()
 
@@ -134,8 +134,8 @@ def main(logger, opts):
         numpy.save(os.path.join(opts.output_dir, "ts_psnr.npy"), test_ts_psnr)
         numpy.save(os.path.join(opts.output_dir, "st_ssim.npy"), test_st_ssim)
         numpy.save(os.path.join(opts.output_dir, "ts_ssim.npy"), test_ts_ssim)
-        numpy.save(os.path.join(opt.results_dir, "st_mae.npy"), test_st_mae)
-        numpy.save(os.path.join(opt.results_dir, "ts_mae.npy"), test_ts_mae)
+        numpy.save(os.path.join(opts.output_dir, "st_mae.npy"), test_st_mae)
+        numpy.save(os.path.join(opts.output_dir, "ts_mae.npy"), test_ts_mae)
 
 
 if __name__ == '__main__':
@@ -144,7 +144,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', type=str, default='outputs', help="outputs path")
     parser.add_argument('--trainer', type=str, default='UNIT', help="MUNIT|UNIT")
     parser.add_argument('--gpu', type=int, default=0, help="gpu device id")
-    parser.add_argument('--data_dir', type=str, default=r'data', help='path of the dataset')
+    parser.add_argument('--data_dir', type=str, default=r'~/datasets/cmf', help='path of the dataset')
     parser.add_argument('--checkpoint_dir', type=str, default=r'checkpoints', help="checkpoint file dir")
     parser.add_argument('--view', type=str, default='axial', choices=['axial','coronal','sagittal'], help="view")
     parser.add_argument('--pretrained_tag', type=str, default='final', choices=['best','final'], help="pretrained file tag")
