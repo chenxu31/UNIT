@@ -56,8 +56,8 @@ def main(logger, opts):
     if opts.gpu >= 0:
         trainer.cuda()
 
-    dataset_s = common_ixi.Dataset(opts.data_dir, modality="t2", n_slices=config["input_dim_a"], debug=config["debug"])
-    dataset_t = common_ixi.Dataset(opts.data_dir, modality="t1", n_slices=config["input_dim_b"], debug=config["debug"])
+    dataset_s = common_ixi.Dataset(opts.data_dir, modality="t2", n_slices=config["input_dim_a"], debug=opts.debug)
+    dataset_t = common_ixi.Dataset(opts.data_dir, modality="t1", n_slices=config["input_dim_b"], debug=opts.debug)
     dataloader_s = torch.utils.data.DataLoader(dataset_s, batch_size=opts.batch_size, shuffle=True, pin_memory=True,
                                                drop_last=True)
     dataloader_t = torch.utils.data.DataLoader(dataset_t, batch_size=opts.batch_size, shuffle=True, pin_memory=True,
@@ -193,6 +193,7 @@ if __name__ == '__main__':
     parser.add_argument('--logfile', type=str, default='', help="log file")
     parser.add_argument('--psnr_threshold', type=float, default=18.0, help="only save the checkpoint file when PSNR reach this threshold")
     parser.add_argument('--do_validation', type=int, default=1, help="whether do validation during training")
+    parser.add_argument('--debug', type=int, default=0, help="debug flag")
 
     opts = parser.parse_args()
 

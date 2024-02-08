@@ -53,4 +53,3 @@ new_size: 240                               # first resize the shortest image si
 crop_image_height: 240                      # random crop image of this height
 crop_image_width: 240                       # random crop image of this width
 data_root: ./datasets/summer2winter_yosemite256/summer2winter_yosemite     # dataset folder location
-debug: 0                      # debug flag
